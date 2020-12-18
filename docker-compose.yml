@@ -1,0 +1,85 @@
+# the docker-compose.yml format version. compatibility is directly correlated to
+# the version of the local Docker engine running.
+# ------------------------------------------------------------------------------
+# NO CHANGES SHOULD BE MADE TO THIS FILE FOR CONFIGURATION PURPOSES
+version: "3.5"
+
+
+# defines the virtual network that local services connect to and are capable of
+# communicating with other services on the same network. can be used to emulate
+# the separation of services across networks where the remote infrastructure
+# does likewise.
+# ------------------------------------------------------------------------------
+networks:
+
+  # local network.
+  # ----------------------------------------------------------------------------
+  local_network_tmo_app:
+    name: local_network_tmo_app
+    driver: bridge
+
+
+# defines the services which can be brought up locally and communicated with.
+# they are named based on the format: <service>-<product>-<version>. the
+# <version> should always be the latest.
+# ------------------------------------------------------------------------------
+services:
+
+  # web service. (composite image)
+  # ----------------------------------------------------------------------------
+  web:
+    env_file:
+      - app-variables.env
+      # service build configuration.
+    build:
+      # the location of the service's build file from the context root. add a
+      # 'dockerfile' keyword immediately after if using a build file named
+      # anything other than 'Dockerfile'. this build file's path is relative to
+      # the location of this file.
+      context: "."
+      dockerfile: "Dockerfile"
+
+      # build arguments provided to the build file during build execution.
+      args:
+        BUILD_CONTAINER_PORT: 80
+        BUILD_IMAGE_NAME: "php"
+        BUILD_IMAGE_TAG: "7.3-nginx"
+        UID: ${UID}
+        # added to be able to easily move nginx.conf over to /etc/nginx/nginx.conf
+        NGINX_CONFIG_PATH: ${NGINX_CONFIG_PATH}
+
+    # if a composite image, the name of the built image. if a native image with
+    # no build context, the name and tag of the image to use.
+    image: ${BUILD_IMAGE_NAME}
+
+
+    # service container's name.
+    container_name: ${CONTAINER_NAME}
+
+
+    # service environment variables.
+    environment:
+      - NGINX_RUN_USER=#${UID}
+      - NGINX_RUN_GROUP=#${UID}
+
+
+    # service logging settings.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+
+    # service network access.
+    networks:
+      - local_network_tmo_app
+
+
+    # service host:container port mappings.
+    ports:
+      - "3000:80"
+
+    # volumes.
+    volumes:
+      - "./:/home/tmo/src"
