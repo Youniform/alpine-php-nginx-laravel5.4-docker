@@ -1,122 +1,53 @@
-	# define build argument defaults.
-# ------------------------------------------------------------------------------
-ARG BUILD_IMAGE_NAME=php
-ARG BUILD_IMAGE_TAG=7.2-apache
-ARG BUILD_CONTAINER_PORT=8000
+FROM alpine:3.12
+LABEL Maintainer="Tim de Pater <code@trafex.nl>" \
+      Description="Lightweight container with Nginx 1.18 & PHP-FPM 7.3 based on Alpine Linux."
 
+# Install packages and remove default server definition
+RUN apk --no-cache add php7 php7-fpm php7-opcache php7-mysqli php7-json php7-openssl php7-curl \
+    php7-zlib php7-xml php7-phar php7-intl php7-dom php7-xmlreader php7-ctype php7-session \
+    php7-mbstring php7-gd nginx supervisor curl openssl wget mariadb mariadb-client && \
+    rm /etc/nginx/conf.d/default.conf
 
-# specify the image name and tag to base the build image off.
-# ------------------------------------------------------------------------------
-FROM ${BUILD_IMAGE_NAME}:${BUILD_IMAGE_TAG}
+# Configure nginx
+COPY ./docker_config_files/nginx.conf /etc/nginx/nginx.conf
 
-# This is needed specifically for the odbc package
-ENV ACCEPT_EULA=Y
+# Configure PHP-FPM
+COPY ./docker_config_files/fpm-pool.conf /etc/php/7.2/php-fpm.d/www.conf
+#COPY ./docker_config_files//php.ini /etc/php7/conf.d/custom.ini
 
-# create the application home directory and make it the working directory.
-# ------------------------------------------------------------------------------
-RUN mkdir -p /home/tmo/src_code
-WORKDIR /home/tmo/src_code
+# Configure supervisord
+COPY ./docker_config_files/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Microsoft SQL Server Prerequisites
-## There may be duplicate packages here dpeending on the copy paste job I did from here: https://laravel-news.com/install-microsoft-sql-drivers-php-7-docker
-### From what I can tell I think maybe the apt-transport-https is probably duplicated it s a fairly common package
-RUN apt-get update 
-## NEED THIS
-RUN apt-get install -y gpgv
-RUN wget -q -O - https://packages.microsoft.com/keys/microsoft.asc | apt-key add - 
-RUN curl https://packages.microsoft.com/config/debian/9/prod.list > /etc/apt/sources.list.d/mssql-release.list
-RUN apt-get install -y --no-install-recommends locales apt-transport-https	
-RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen \
-    && locale-gen
-RUN apt-get update
-RUN apt-get -y --no-install-recommends install \
-    unixodbc-dev \
-    msodbcsql17
+# Setup document root
+RUN mkdir -p /home/tmo/src
 
-RUN apt-get update 
-RUN apt-get install -y --no-install-recommends locales apt-transport-https
+# Make sure files/folders needed by the processes are accessable when they run under the nobody user
+RUN chown -R nobody.nobody /home/tmo/src && \
+  chown -R nobody.nobody /run && \
+  chown -R nobody.nobody /var/lib/nginx && \
+  chown -R nobody.nobody /var/log/nginx
 
-RUN docker-php-ext-install mbstring pdo pdo_mysql \
-    && pecl install sqlsrv pdo_sqlsrv \
-    && docker-php-ext-enable sqlsrv pdo_sqlsrv
-# update 'apt-get' and install required packages.
-# ------------------------------------------------------------------------------
-RUN apt-get update
-RUN apt-get install -y \
-# added vim so we can edit files
-	vim \
-	git \
-	zip \                            
-	curl \
-	sudo \
-	unzip \
-	libicu-dev \
-	libbz2-dev \
-	libpng-dev \
-	libjpeg-dev \
-	libldap2-dev \
-	libmcrypt-dev \
-	libreadline-dev \
-	libfreetype6-dev \
-	g++ 
-
-
-# configure ldap php extension.
-# ------------------------------------------------------------------------------
-RUN docker-php-ext-install ldap && \
-    docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ 
-
-
-# configure PHP environment and install PHP extensions.
-# ------------------------------------------------------------------------------
-RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
-RUN docker-php-ext-install \
-	bz2 \
-	intl \
-	iconv \
-	bcmath \
-	opcache \
-	calendar \
-	mbstring \
-	pdo_mysql \
-	zip
-
-
-# create container-scoped user to prevent host permission inheritance.
-# ------------------------------------------------------------------------------
-ARG UID
-RUN useradd -u $UID -m tmo && \
-	usermod -aG www-data,root tmo
-USER tmo
-RUN mkdir -p /home/tmo/src_code
-
-# copy source files to working directory.
-# ------------------------------------------------------------------------------
-COPY ./ /home/tmo/src_code
-
+# Switch to use a non-root user from here on
 USER root
+ARG UID
+RUN adduser -S tmo -u $UID
+RUN addgroup tmo www-data
+RUN addgroup tmo nobody
+RUN addgroup tmo non-root
+RUN cd /home/tmo
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer 
+RUN apk add --update nodejs npm
 
-# simplest way to configure nginx.conf file
-RUN cp ${NGINX_CONFIG_PATH} ${NGINX_SITE_DIRECTORY}
 
-# install composer.
-# ------------------------------------------------------------------------------
-COPY --from=docker.io/library/composer:latest /usr/bin/composer /usr/bin/composer
-RUN cp /usr/bin/composer /home/tmo/src_code/.composer
+# Add application		
+WORKDIR /home/tmo/src
+COPY --chown=nobody ./ /home/tmo/src
 
-# install node.js.
-# ------------------------------------------------------------------------------
-RUN curl -sL https://deb.nodesource.com/setup_10.x | bash - \
-	&& apt-get install -y nodejs
+# Expose the port nginx is reachable on
+EXPOSE 8080
 
-## Replace the default nginx index page with our Angular app
-#RUN rm -rf /usr/share/nginx/html/*
-#COPY {$} /usr/share/nginx/html
+# Let supervisord start nginx & php-fpm
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
 
-COPY {$NGINX_CONFIG_PATH} /etc/nginx/nginx.conf
-
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
-
-# specify the port the application is listening on.
-# ------------------------------------------------------------------------------
-EXPOSE ${BUILD_CONTAINER_PORT}
+# Configure a healthcheck to validate that everything is up&running
+HEALTHCHECK --timeout=10s CMD curl --silent --fail http://127.0.0.1:8080/fpm-ping

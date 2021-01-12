@@ -1,0 +1,48 @@
+
+Minimum Laravel Version: 5.4     [Anything older and the PHP Versions are no longer supported by modern packages]
+
+PHP Version: 7.2
+
+Database: Mysql 5.4 or 8? 
+
+Server: NGINX
+
+    Package Management:
+    ☐ apk-tools 
+
+    CMD Line File Fetching:
+    ☐ curl
+    ☐ wget
+
+    HyperText PreProcessor and Modules/Extensions:
+    ☐ PHP-FPM
+    ☐ PHP >= 5.6.4
+    ☐ OpenSSL PHP Extension
+    ☐ PDO PHP Extension
+    ☐ Mbstring PHP Extension
+    ☐ Tokenizer PHP Extension
+    ☐ XML PHP Extension
+
+    Project Pre-Requisite Management:
+    ☐ Composer
+    ☐ NodeJS/NPM
+
+    Application Layer Framework:
+    ☐ Laravel 5.4 Sterile Codebase
+
+
+Notes:
+Apps Requiring MSSql should consider leveraging Amazon RDS
+
+Run through this after everything else is successfully installed to get the Laravel Codebase inside the container:
+  - First, download the Laravel installer using Composer
+
+    $ composer global require "laravel/installer"
+
+    Make sure to place the $HOME/.composer/vendor/bin directory (or the equivalent directory for your OS) in your $PATH so the laravel executable can be located by your system.
+
+    $ echo "PATH=$PATH.:$HOME/.composer/vendor/bin" >> ~/.bashrc
+
+  - Once installed, the laravel new command will create a fresh Laravel installation in the directory you specify. For instance, laravel new blog will create a directory named blog containing a fresh Laravel installation with all of Laravel's dependencies already installed
+
+  $ laravel new blog
