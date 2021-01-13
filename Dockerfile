@@ -41,7 +41,18 @@ RUN apk add --update nodejs npm
 
 # Add application		
 WORKDIR /home/tmo/src
+
 COPY --chown=nobody ./ /home/tmo/src
+
+
+# Run composer create project for laravel 5.4
+RUN composer create-project --prefer-dist laravel/laravel project "5.4.*"
+
+# Run Composer install
+RUN composer install
+
+# Run npm install
+RUN npm install
 
 # Expose the port nginx is reachable on
 EXPOSE 8080

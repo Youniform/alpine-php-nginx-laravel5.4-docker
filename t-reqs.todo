@@ -8,15 +8,14 @@ Database: Mysql 5.4 or 8?
 Server: NGINX
 
     Package Management:
-    ☐ apk-tools 
-
+    ✔ apk-tools @done
     CMD Line File Fetching:
-    ☐ curl
-    ☐ wget
+    ✔ curl @done 
+    ✔ wget @done 
 
     HyperText PreProcessor and Modules/Extensions:
-    ☐ PHP-FPM
-    ☐ PHP >= 5.6.4
+    ✔ PHP-FPM @done 
+    ✔ PHP >= 5.6.4 @done
     ☐ OpenSSL PHP Extension
     ☐ PDO PHP Extension
     ☐ Mbstring PHP Extension
